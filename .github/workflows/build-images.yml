@@ -6,7 +6,9 @@ on:
     paths:
       - "frontend/**"
       - "backend/**"
+      - "infra/**"
       - ".github/workflows/build-images.yml"
+      - ".github/workflows/infrastructure.yml"
   workflow_dispatch:
 
 permissions:
@@ -14,9 +16,12 @@ permissions:
   id-token: write
 
 jobs:
+  infrastructure:
+    uses: ./.github/workflows/infrastructure.yml
+
   build:
+    needs: infrastructure
     runs-on: ubuntu-latest
-    timeout-minutes: 15
 
     env:
       IMAGE_TAG: ${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
