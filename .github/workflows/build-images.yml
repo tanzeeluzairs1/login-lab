@@ -1,0 +1,66 @@
+name: Build and push Docker images
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "frontend/**"
+      - "backend/**"
+      - ".github/workflows/build-images.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    env:
+      IMAGE_TAG: ${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Authenticate to AWS
+        uses: aws-actions/configure-aws-credentials@v6.3.0
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+          allowed-account-ids: "425034746374"
+
+      - name: Login to Amazon ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build both images
+        env:
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+        run: |
+          set -euo pipefail
+
+          docker build \
+            -t "$REGISTRY/login-lab-backend:$IMAGE_TAG" \
+            ./backend
+
+          docker build \
+            -t "$REGISTRY/login-lab-frontend:$IMAGE_TAG" \
+            ./frontend
+
+      - name: Push both images
+        env:
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+        run: |
+          set -euo pipefail
+
+          docker push "$REGISTRY/login-lab-backend:$IMAGE_TAG"
+          docker push "$REGISTRY/login-lab-frontend:$IMAGE_TAG"
+
+          {
+            echo "### Published images"
+            echo "- Backend: \`$REGISTRY/login-lab-backend:$IMAGE_TAG\`"
+            echo "- Frontend: \`$REGISTRY/login-lab-frontend:$IMAGE_TAG\`"
+          } >> "$GITHUB_STEP_SUMMARY"
